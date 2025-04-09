@@ -22,7 +22,7 @@
           "*://*.indeed.com/*"
         ],
         "js": [
-          "vendor/compromise.min.js",
+          "vendor/compromise-bundle.min.js",
           "content-script.js"
         ]
       }
