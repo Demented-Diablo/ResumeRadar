@@ -1,0 +1,31 @@
+{
+    "name": "Resume Radar",
+    "description": "Scans job posts and highlights missing resume keywords.",
+    "version": "1.0",
+    "manifest_version": 3,
+    "permissions": [
+      "scripting",
+      "activeTab",
+        "storage"
+    ],
+    "host_permissions": [
+      "*://*.linkedin.com/*",
+      "*://*.indeed.com/*"
+    ],
+    "action": {
+      "default_popup": "popup.html"
+    },
+    "content_scripts": [
+      {
+        "matches": [
+          "*://*.linkedin.com/*",
+          "*://*.indeed.com/*"
+        ],
+        "js": [
+          "vendor/compromise.min.js",
+          "content-script.js"
+        ]
+      }
+    ]
+  }
+  
