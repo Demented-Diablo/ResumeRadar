@@ -24,7 +24,8 @@
         "js": [
           "vendor/compromise-bundle.min.js",
           "content-script.js"
-        ]
+        ],
+        "run_at": "document_idle"
       }
     ]
   }

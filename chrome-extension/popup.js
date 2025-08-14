@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Send a message to the content script to do the check
     checkButton.addEventListener('click', () => {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        chrome.tabs.sendMessage(tabs[0].id, { action: 'CHECK_JOB' }, (response) => {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'CHECK_JOB' }, (response) => {
           if (response && response.score !== undefined) {
             resultElement.textContent = `Match Score: ${response.score}%`;
           } else if (response && response.error) {
