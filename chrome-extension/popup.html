@@ -3,17 +3,79 @@
 <head>
   <meta charset="utf-8">
   <title>Resume Radar</title>
+  <link rel="stylesheet" href="styles/popup.css">
 </head>
 <body>
-  <h3>Resume Radar</h3>
+  <div class="header">
+    <h1>Resume Radar</h1>
+  </div>
 
-  <label for="resumeInput">Paste your resume text:</label><br>
-  <textarea id="resumeInput" rows="6" cols="40"></textarea><br>
-  <button id="saveResume">Save Resume</button>
+  <section class="resume-section">
+    <label for="resumeInput">Your Resume</label>
+    <textarea id="resumeInput" placeholder="Paste your resume text here..."></textarea>
+    <button id="saveResume" class="btn btn-secondary">Save Resume</button>
+    <p id="saveStatus" class="save-status"></p>
+  </section>
 
   <hr>
-  <button id="checkButton">Check Job Post</button>
-  <p id="result"></p>
+
+  <section class="check-section">
+    <button id="checkButton" class="btn btn-primary">Check This Job Post</button>
+  </section>
+
+  <section id="results" class="results hidden">
+
+    <!-- Extraction confidence indicator -->
+    <div class="confidence hidden" id="confidence"></div>
+
+    <!-- Three scores -->
+    <div class="score-grid">
+      <div class="score-col">
+        <div class="score-num" id="skillScoreVal">—</div>
+        <div class="score-col-label">Skill Match</div>
+      </div>
+      <div class="score-divider"></div>
+      <div class="score-col">
+        <div class="score-num" id="expScoreVal">—</div>
+        <div class="score-col-label">Exp Match</div>
+      </div>
+      <div class="score-divider"></div>
+      <div class="score-col">
+        <div class="score-num" id="overallScoreVal">—</div>
+        <div class="score-col-label">Overall Fit</div>
+      </div>
+    </div>
+
+    <!-- Fit label -->
+    <div class="fit-row">
+      <span class="fit-pill" id="fitPill"></span>
+      <span class="fit-qualifier" id="fitQualifier"></span>
+    </div>
+
+    <!-- One-sentence explanation -->
+    <p class="explanation" id="explanation"></p>
+
+    <hr class="inner-hr">
+
+    <!-- Matched skills -->
+    <div class="skills-section">
+      <h3 id="matchedHeading" class="skills-heading matched-heading">Matched Skills</h3>
+      <div id="matchedSkills" class="skill-badges"></div>
+    </div>
+
+    <!-- Missing required -->
+    <div class="skills-section">
+      <h3 id="missingReqHeading" class="skills-heading missing-heading">Missing — Required</h3>
+      <div id="missingRequired" class="skill-badges"></div>
+    </div>
+
+    <!-- Missing preferred (hidden if job post has no preferred section) -->
+    <div class="skills-section hidden" id="preferredSection">
+      <h3 class="skills-heading preferred-heading">Missing — Nice to Have</h3>
+      <div id="missingPreferred" class="skill-badges"></div>
+    </div>
+
+  </section>
 
   <script src="popup.js"></script>
 </body>
