@@ -76,6 +76,10 @@
     kafka:          ['kafka', 'apache kafka', 'event streaming', 'message streaming', 'message broker'],
     debezium:       ['debezium', 'change data capture', 'cdc'],
     rabbitmq:       ['rabbitmq', 'rabbit mq', 'amqp', 'message queue'],
+    // Embedded / systems — added for domain mismatch detection and skill gap visibility
+    rtos:           ['rtos', 'freertos', 'vxworks', 'zephyr', 'real-time os', 'real-time operating'],
+    firmware:       ['firmware', 'embedded software', 'embedded systems', 'bare metal', 'device driver', 'bsp'],
+    autosar:        ['autosar', 'iso 26262', 'functional safety', 'can bus', 'canbus', 'lin bus', 'automotive software'],
   };
 
   // ---------------------------------------------------------------------------
@@ -93,6 +97,146 @@
     container: { name: 'Container ecosystem',  skills: ['docker', 'kubernetes'] },
     ml_fw:     { name: 'ML framework',         skills: ['tensorflow', 'pytorch', 'machinelearning', 'deeplearning'] },
     js_ts:     { name: 'JavaScript/TypeScript', skills: ['javascript', 'typescript'] },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Concept map — abstract phrases found in job text → related canonical skills.
+  //
+  // Purpose: job postings often say "API design" or "cloud infrastructure" instead
+  // of naming specific skills. When a concept phrase is detected in the job text
+  // but none of its specific skills were also named, we check the resume for any
+  // of those skills and surface "API design inferred via rest" instead of silence.
+  //
+  // Rules:
+  //   • Only fires when the concept phrase appears but NO specific skill from the
+  //     list also appears in the job text (avoids double-counting).
+  //   • Does NOT affect the numeric skill score — purely informational.
+  //   • Concept matches are shown with a distinct badge and in the explanation.
+  // ---------------------------------------------------------------------------
+  const CONCEPT_MAP = {
+    // API / integration
+    'api design':                ['rest', 'graphql', 'grpc'],
+    'api development':           ['rest', 'graphql', 'grpc'],
+    'api integration':           ['rest', 'graphql', 'websockets'],
+    'web services':              ['rest', 'graphql', 'grpc'],
+    'service integration':       ['rest', 'graphql', 'kafka', 'grpc'],
+    'integrations':              ['rest', 'graphql', 'kafka', 'websockets'],
+    // Backend — short forms to catch "backend" without "development"
+    'backend development':       ['nodejs', 'python', 'java', 'go', 'ruby', 'csharp'],
+    'backend systems':           ['nodejs', 'python', 'java', 'go', 'express', 'spring'],
+    'backend engineering':       ['nodejs', 'python', 'java', 'go', 'ruby', 'csharp'],
+    'server-side development':   ['nodejs', 'python', 'java', 'go'],
+    'server side development':   ['nodejs', 'python', 'java', 'go'],
+    // Frontend
+    'frontend development':      ['javascript', 'react', 'angular', 'vue', 'nextjs'],
+    'front-end development':     ['javascript', 'react', 'angular', 'vue'],
+    'ui development':            ['react', 'angular', 'vue', 'javascript'],
+    'web development':           ['javascript', 'react', 'html', 'css'],
+    // Cloud / infra — including short "infrastructure" alone
+    'cloud infrastructure':      ['aws', 'azure', 'gcp'],
+    'cloud services':            ['aws', 'azure', 'gcp'],
+    'cloud deployment':          ['aws', 'azure', 'gcp', 'docker'],
+    'cloud computing':           ['aws', 'azure', 'gcp'],
+    'cloud native':              ['aws', 'azure', 'gcp', 'kubernetes', 'docker'],
+    'infrastructure':            ['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform'],
+    'agent infrastructure':      ['docker', 'kubernetes', 'aws', 'gcp'],
+    // Data
+    'database design':           ['sql', 'mongodb', 'redis', 'cassandra'],
+    'database management':       ['sql', 'mongodb', 'redis'],
+    'data modeling':             ['sql', 'mongodb', 'cassandra'],
+    'data pipelines':            ['kafka', 'spark', 'sql'],
+    'data storage':              ['sql', 'mongodb', 'redis', 'dynamodb'],
+    // DevOps / infra
+    'containerization':          ['docker', 'kubernetes'],
+    'container orchestration':   ['kubernetes', 'docker'],
+    'devops practices':          ['cicd', 'docker', 'linux'],
+    'deployment pipeline':       ['cicd', 'docker', 'git'],
+    'infrastructure automation': ['terraform', 'cicd'],
+    // ML / AI
+    'data science':              ['python', 'pandas', 'numpy', 'machinelearning'],
+    'machine learning models':   ['machinelearning', 'tensorflow', 'pytorch'],
+    'ai development':            ['machinelearning', 'deeplearning', 'python'],
+    'ai agents':                 ['python', 'machinelearning', 'deeplearning'],
+    // Distributed systems
+    'microservice architecture': ['microservices', 'docker', 'kafka'],
+    'distributed systems':       ['kafka', 'redis', 'microservices'],
+    'system design':             ['microservices', 'kafka', 'docker', 'redis'],
+    'event-driven architecture': ['kafka', 'rabbitmq', 'microservices'],
+    // General engineering
+    'version control':           ['git'],
+    'source control':            ['git'],
+    'agile methodology':         ['agile'],
+    'test-driven development':   ['testing'],
+    'unit testing':              ['testing'],
+    'integration testing':       ['testing'],
+    'automated testing':         ['testing'],
+    'object-oriented programming': ['java', 'python', 'csharp', 'kotlin'],
+    'scripting':                 ['python', 'bash', 'javascript'],
+    'production code':           ['nodejs', 'python', 'java', 'go', 'javascript'],
+    'production systems':        ['docker', 'aws', 'cicd', 'nodejs', 'python'],
+  };
+
+  // ---------------------------------------------------------------------------
+  // Domain profiles — used exclusively for domain mismatch detection.
+  //
+  // IMPORTANT DESIGN DECISION: only domains that are genuinely distinct career
+  // tracks from general software engineering are included here.
+  // webBackend, webFrontend, cloudDevOps are intentionally ABSENT because they
+  // are the candidate's home territory — matching there should never be a
+  // "mismatch." These profiles catch the GM-class failure where a posting is
+  // fundamentally about embedded systems or statistical research, not software
+  // product engineering.
+  //
+  // Mismatch fires when:
+  //   jobScore ≥ 4  (strong domain signal in the job text)
+  //   resumeScore = 0  (candidate has zero presence in that domain)
+  // We err heavily toward NOT flagging mismatch — one keyword on either side
+  // suppresses it.
+  // ---------------------------------------------------------------------------
+  const DOMAIN_PROFILES = {
+    embedded: {
+      label: 'Embedded / Systems / Hardware-adjacent Engineering',
+      // Canonical SYNONYMS keys whose presence scores the domain
+      skills: ['cplusplus', 'rust', 'matlab', 'rtos', 'firmware', 'autosar'],
+      // Raw text phrases — strong signals even if not individually in SYNONYMS
+      keywords: [
+        'embedded', 'firmware', 'rtos', 'real-time', 'microcontroller', 'microprocessor',
+        'fpga', 'plc', 'can bus', 'automotive', 'autosar', 'iso 26262',
+        'functional safety', 'controls engineer', 'control systems',
+        'motor control', 'powertrain', 'chassis', 'adas',
+        'device driver', 'bare metal', 'system on chip', 'verilog', 'vhdl',
+        'oscilloscope', 'jtag', 'bootloader',
+      ],
+    },
+    dataScience: {
+      label: 'Data Science / Statistical Modeling',
+      skills: ['machinelearning', 'deeplearning', 'tensorflow', 'pytorch', 'pandas', 'numpy', 'spark', 'r', 'matlab'],
+      keywords: [
+        'data scientist', 'statistical modeling', 'predictive modeling',
+        'feature engineering', 'hypothesis testing', 'regression analysis',
+        'research scientist', 'quantitative analyst', 'a/b testing',
+        'experimental design', 'causal inference', 'bayesian',
+      ],
+    },
+    mobile: {
+      label: 'iOS / Android Mobile Engineering',
+      skills: ['swift', 'kotlin'],
+      keywords: [
+        'ios engineer', 'ios developer', 'android engineer', 'android developer',
+        'xcode', 'android studio', 'app store', 'google play',
+        'react native developer', 'flutter developer', 'mobile-first',
+      ],
+    },
+    security: {
+      label: 'Cybersecurity / Security Engineering',
+      skills: ['security'],
+      keywords: [
+        'penetration testing', 'pen testing', 'threat modeling', 'vulnerability assessment',
+        'incident response', 'security operations center', 'soc analyst',
+        'red team', 'blue team', 'malware analysis', 'digital forensics',
+        'intrusion detection', 'zero trust', 'siem', 'devsecops',
+      ],
+    },
   };
 
   // ---------------------------------------------------------------------------
@@ -130,11 +274,30 @@
     /^compensation(?:\s+and\s+benefits?)?$/i,
     /^(?:total\s+)?rewards?$/i,
     /^equal\s+(?:opportunity|employment)/i,
+    /^(?:we\s+are\s+an?\s+)?equal\s+opportunity\s+employer/i,
+    /^equal\s+opportunity\s+statement$/i,
+    /^non.?discrimination\s+(?:policy|statement)$/i,
+    /^affirmative\s+action/i,
     /^diversity(?:\s+and\s+inclusion)?$/i,
     /^privacy\s+(?:policy|notice|statement)$/i,
     /^(?:apply\s+now|how\s+to\s+apply)$/i,
     // "About MongoDB", "About Stripe" — "About" followed by a proper noun (not "the role/job")
     /^about\s+(?!the\s+(?:role|job|position|opportunity))[A-Z]/,
+    // Interview / hiring process sections
+    /^(?:our\s+)?(?:interview|hiring)\s+(?:process|steps?)$/i,
+    /^how\s+(?:we\s+)?(?:hire|interview|work)$/i,
+    // Physical / legal / work authorization boilerplate
+    /^physical\s+(?:demands?|requirements?)$/i,
+    /^work\s+authorization$/i,
+    /^(?:legal\s+)?authorization\s+(?:to\s+work|requirements?)$/i,
+    // Location / remote policy blocks
+    /^(?:work\s+)?(?:location|arrangement|environment|schedule)$/i,
+    /^(?:remote|hybrid|on.?site)\s+(?:work\s+)?(?:policy|info|details?)?$/i,
+    // Salary disclosure blocks (state-mandated postings)
+    /^(?:salary|pay|compensation)\s+(?:range|information|disclosure)$/i,
+    // Misc boilerplate
+    /^(?:about\s+the\s+)?application\s+process$/i,
+    /^what\s+(?:to\s+)?expect$/i,
   ];
 
   // Relevant section headers — when seen after a noise section, resume collecting.
@@ -238,22 +401,34 @@
   // Returns a number (possibly 0 for intern/new-grad), or null if undetectable
   // ---------------------------------------------------------------------------
   function detectJobExperience(text) {
-    // Simple approach: find every "N" or "N+" near the word "years" in the text.
-    // Take the minimum — that's the bar. No need to predict sentence structure.
-    // We run this on requiredText so company/sidebar noise is already stripped.
+    // Step 1: Entry-level / intern signals are checked FIRST.
+    // This prevents "0–3 years (entry level welcome)" from returning 3.
+    if (/\b(intern(?:ship)?|co.?op|new\s+grads?|early[- ]career|entry[- ]level)\b/i.test(text)) return 0;
+
+    // Step 2: "0–N years" or "0 to N years" explicitly means entry-level.
+    if (/\b0\s*(?:[-–]|to)\s*\d+\s*years?\b/i.test(text)) return 0;
+
+    // Step 3: Numeric year scan with an age-context filter.
+    // Phrases like "18 years of age or older", "must be 21 years old" look identical
+    // to experience requirements unless we check the surrounding context.
+    const AGE_CONTEXT = /\b(age|years?\s+old|of\s+age|older|legal\s+age|eligible|eligib|citizen|authoriz|work\s+permit|must\s+be\s+\d)\b/i;
+
     const hits = [];
     for (const m of text.matchAll(/\b(\d+)\+?\s*(?:[-–]\s*\d+\s*)?years?\b/gi)) {
       const n = parseInt(m[1]);
-      if (n >= 1 && n <= 20) hits.push(n); // sanity-filter dates and large numbers
+      if (n < 1 || n > 20) continue; // sanity-filter dates (2024) and absurd counts
+      // Check a 80-character window around the match for age/legal noise
+      const ctx = text.slice(Math.max(0, m.index - 80), m.index + m[0].length + 80);
+      if (AGE_CONTEXT.test(ctx)) continue;
+      hits.push(n);
     }
     if (hits.length > 0) return Math.min(...hits);
 
-    // No explicit year count — fall back to seniority keywords
+    // Step 4: No explicit year count — fall back to seniority keywords.
     if (/\b(staff|principal|distinguished)\b/i.test(text)) return 8;
     if (/\bsenior\b/i.test(text)) return 5;
     if (/\bmid.?(?:level|senior)\b/i.test(text)) return 3;
     if (/\b(junior|jr\.?)\b/i.test(text)) return 1;
-    if (/\b(intern(?:ship)?|co.?op|new\s+grads?|early[- ]career|entry[- ]level)\b/i.test(text)) return 0;
     return null;
   }
 
@@ -308,6 +483,120 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Classify career stage for both the job and the candidate.
+  // Returns { jobStage, resumeStage, fit }
+  //
+  //   jobStage / resumeStage: 'intern' | 'entry' | 'mid' | 'senior' | 'unknown'
+  //   fit:  'aligned' | 'stretch' | 'overqualified' | 'unknown'
+  //
+  // Used to:
+  //   (a) suppress or explain the experience score when stage is clear
+  //   (b) add a human-readable label to the UI ("Entry Level role")
+  // ---------------------------------------------------------------------------
+  function detectCareerStage(jobText, resumeText) {
+    // --- Job stage ---
+    const jobIsIntern = /\b(intern(?:ship)?|co.?op)\b/i.test(jobText);
+    const jobIsEntry  = !jobIsIntern && /\b(new\s+grads?|early[- ]career|entry[- ]level|junior|jr\.?|0\s*[-–]\s*\d+\s*years?)\b/i.test(jobText);
+    const jobIsStaff  = /\b(staff\s+engineer|principal\s+engineer|distinguished\s+engineer)\b/i.test(jobText);
+    const jobIsSenior = !jobIsStaff && /\b(senior|lead\s+(?:engineer|developer|software))\b/i.test(jobText);
+    const jobIsMid    = !jobIsEntry && !jobIsSenior && !jobIsStaff
+                     && /\bmid.?(?:level|senior)\b/i.test(jobText);
+
+    const jobStage = jobIsIntern ? 'intern'
+      : jobIsEntry  ? 'entry'
+      : jobIsStaff  ? 'staff'
+      : jobIsSenior ? 'senior'
+      : jobIsMid    ? 'mid'
+      : 'unknown';
+
+    // --- Resume / candidate stage ---
+    const resumeIsStudent = /\b(intern(?:ship)?|undergraduate|currently\s+enrolled|pursuing\s+(?:a\s+)?(?:b\.s|bachelor|degree)|expected|seeking\s+(?:internship|co.?op))\b/i.test(resumeText);
+    const explicit = resumeText.match(/(\d+)\+?\s*years?\s+of\s+(?:professional\s+|software\s+|industry\s+|relevant\s+)?experience/i);
+
+    let resumeStage = 'unknown';
+    if (resumeIsStudent) {
+      resumeStage = 'entry';
+    } else if (explicit) {
+      const y = parseInt(explicit[1]);
+      resumeStage = y === 0 ? 'entry'
+        : y <= 2  ? 'entry'
+        : y <= 5  ? 'mid'
+        : y <= 9  ? 'senior'
+        : 'staff';
+    }
+
+    // --- Fit classification ---
+    let fit = 'unknown';
+    if (jobStage !== 'unknown' && resumeStage !== 'unknown') {
+      const ORDER = { intern: 0, entry: 1, mid: 2, senior: 3, staff: 4 };
+      const jRank = ORDER[jobStage] ?? -1;
+      const rRank = ORDER[resumeStage] ?? -1;
+      if (jRank === rRank)       fit = 'aligned';
+      else if (rRank > jRank)    fit = 'overqualified';
+      else                       fit = 'stretch';
+    }
+
+    return { jobStage, resumeStage, fit };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Domain mismatch detection.
+  //
+  // Scores the job text against DOMAIN_PROFILES to find whether this role is
+  // in a specialist engineering domain (embedded, data science, mobile, security).
+  // Then checks the resume for any presence in that domain.
+  //
+  // Conservative by design: only fires when job signal is strong (≥ 4 pts) AND
+  // resume has ZERO presence. One keyword hit on the resume side suppresses it.
+  // This satisfies the core principle: rarely tell someone to skip a relevant job.
+  //
+  // Returns { mismatch, jobDomain, mismatchReason }
+  // ---------------------------------------------------------------------------
+  function detectDomainFit(cleanJobText, resumeText) {
+    const jobLower    = cleanJobText.toLowerCase();
+    const resumeLower = resumeText.toLowerCase();
+
+    let topDomainId = null;
+    let topScore    = 0;
+
+    for (const [domainId, profile] of Object.entries(DOMAIN_PROFILES)) {
+      let score = 0;
+      // Skill-based signals — weight 2 (more specific, less likely to appear by accident)
+      for (const skillKey of profile.skills) {
+        const terms = SYNONYMS[skillKey] ?? [];
+        if (terms.some(t => textHasTerm(jobLower, t))) score += 2;
+      }
+      // Keyword signals — weight 1
+      for (const kw of profile.keywords) {
+        if (jobLower.includes(kw)) score += 1;
+      }
+      if (score > topScore) { topScore = score; topDomainId = domainId; }
+    }
+
+    // Signal too weak — this is not a specialist-domain posting
+    if (topScore < 4) return { mismatch: false };
+
+    // Measure resume presence in the same domain
+    const profile = DOMAIN_PROFILES[topDomainId];
+    let resumeScore = 0;
+    for (const skillKey of profile.skills) {
+      const terms = SYNONYMS[skillKey] ?? [];
+      if (terms.some(t => textHasTerm(resumeLower, t))) resumeScore += 2;
+    }
+    for (const kw of profile.keywords) {
+      if (resumeLower.includes(kw)) resumeScore += 1;
+    }
+
+    if (resumeScore > 0) return { mismatch: false };
+
+    return {
+      mismatch:        true,
+      jobDomain:       profile.label,
+      mismatchReason: `role is in ${profile.label.toLowerCase()}`,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
   // Score the experience match (0–100)
   // ---------------------------------------------------------------------------
   function computeExpScore(jobYears, resumeYears) {
@@ -320,17 +609,31 @@
   // ---------------------------------------------------------------------------
   // Determine overall fit label + one-line qualifier
   // ---------------------------------------------------------------------------
-  function getFitLabel(skillScore, expScore) {
+  function getFitLabel(skillScore, expScore, domainFit) {
+    // Low-confidence extraction — can't assess
+    if (skillScore === null) {
+      return { label: 'Low Confidence', qualifier: 'could not extract enough structure from this posting' };
+    }
+
+    // Domain mismatch overrides all scoring — role is in a different engineering track
+    if (domainFit?.mismatch) {
+      return { label: 'Domain Mismatch', qualifier: domainFit.mismatchReason };
+    }
+
     const noExp = expScore === null;
 
+    // No experience data — rely on skill score alone
     if (noExp) {
       if (skillScore >= 80) return { label: 'Strong Fit',   qualifier: null };
       if (skillScore >= 60) return { label: 'Good Fit',     qualifier: null };
-      if (skillScore >= 40) return { label: 'Moderate Fit', qualifier: null };
+      if (skillScore >= 35) return { label: 'Moderate Fit', qualifier: null };
       return                       { label: 'Low Fit',      qualifier: null };
     }
 
-    const highSkill = skillScore >= 65;
+    // Thresholds raised: Strong Fit now requires 75% skill coverage (was 65%).
+    // This makes the label mean something — 65% with gaps is a stretch, not strong.
+    // Moderate Fit floor lowered to 35% to reduce false "Low Fit" on partial evidence.
+    const highSkill = skillScore >= 75;
     const highExp   = expScore   >= 70;
 
     if (highSkill && highExp)
@@ -341,15 +644,28 @@
       return { label: 'Stretch Fit',  qualifier: 'strong technical overlap, below experience level' };
     if (!highSkill && highExp)
       return { label: 'Moderate Fit', qualifier: 'meets experience bar, some skill gaps' };
-    if (skillScore >= 40)
+    if (skillScore >= 35)
       return { label: 'Moderate Fit', qualifier: null };
     return   { label: 'Low Fit',      qualifier: null };
   }
 
   // ---------------------------------------------------------------------------
-  // Generate a one-sentence plain-English summary of the match
+  // Generate a plain-English summary of the match.
+  //
+  // Produces up to two sentences:
+  //   1. Primary assessment — strength, experience gap, hard skill gaps.
+  //   2. Inference sentence — concept matches and partial family matches,
+  //      e.g. "API design inferred via rest; typescript covered via javascript."
+  //
+  // Confidence-aware: low-confidence extractions get a soft prefix so the user
+  // knows the scores are based on a noisy full-page scan.
   // ---------------------------------------------------------------------------
-  function generateExplanation({ matched, missingRequired, skillScore, expScore, jobYears, resumeYears }) {
+  function generateExplanation({ matched, missingRequired, conceptMatched = [], skillScore, expScore, jobYears, resumeYears, confidence, domainFit }) {
+    // Domain mismatch — explanation focuses on the domain gap, not skill keywords
+    if (domainFit?.mismatch) {
+      const base = `Role requires ${domainFit.jobDomain.toLowerCase()} background. The core technical requirements are in a different engineering discipline from your profile.`;
+      return confidence === 'low' ? 'Full-page scan — ' + base.charAt(0).toLowerCase() + base.slice(1) : base;
+    }
     function topCat(skills) {
       const counts = {};
       for (const s of skills) {
@@ -361,49 +677,80 @@
     }
 
     const hardMissing = missingRequired.filter(m => !m.partial).map(m => m.skill);
+    const partialGaps = missingRequired.filter(m => m.partial);
     const parts = [];
 
-    // Strength statement
-    const matchedCat = topCat(matched);
-    if (skillScore >= 70 && matchedCat) {
-      const examples = matched
-        .filter(s => SKILL_CATS[matchedCat]?.includes(s))
-        .slice(0, 3).join(', ');
-      parts.push(`Strong match on ${CAT_LABELS[matchedCat]}${examples ? ` (${examples})` : ''}`);
-    } else if (skillScore >= 45 && matchedCat) {
-      parts.push(`Partial match on ${CAT_LABELS[matchedCat]}`);
-    } else if (matched.length > 0) {
-      parts.push(`Some matching skills (${matched.slice(0, 3).join(', ')})`);
+    // --- Sentence 1: Primary assessment ---
+
+    // Strength clause
+    if (skillScore === null) {
+      parts.push('Could not identify required skills from this posting');
     } else {
-      parts.push('Limited overlap with this role');
+      const matchedCat = topCat(matched);
+      if (skillScore >= 70 && matchedCat) {
+        const examples = matched.filter(s => SKILL_CATS[matchedCat]?.includes(s)).slice(0, 3).join(', ');
+        parts.push(`Strong match on ${CAT_LABELS[matchedCat]}${examples ? ` (${examples})` : ''}`);
+      } else if (skillScore >= 45 && matchedCat) {
+        parts.push(`Partial match on ${CAT_LABELS[matchedCat]}`);
+      } else if (matched.length > 0) {
+        parts.push(`Some matching skills (${matched.slice(0, 3).join(', ')})`);
+      } else if (conceptMatched.length > 0) {
+        // No exact skills matched but concepts are covered — lead with that
+        const c = conceptMatched[0];
+        parts.push(`${c.concept} experience inferred from ${c.via}`);
+      } else {
+        parts.push('Limited overlap with this role');
+      }
     }
 
-    // Experience gap statement
+    // Experience clause
     if (jobYears !== null && resumeYears !== null && resumeYears < jobYears * 0.75) {
       parts.push(`below the stated ${jobYears}+ year experience requirement`);
     } else if (jobYears !== null && resumeYears === null) {
       parts.push(`role targets ${jobYears}+ years of experience`);
-    } else if (expScore !== null && expScore >= 100 && skillScore < 65) {
+    } else if (expScore !== null && expScore >= 100 && skillScore !== null && skillScore < 65) {
       parts.push('meets the experience level');
     }
 
-    // Missing skills statement
+    // Hard gaps clause
     if (hardMissing.length > 0) {
       const missingCat = topCat(hardMissing);
-      const examples = hardMissing.slice(0, 3).join(', ');
-      parts.push(
-        missingCat
-          ? `missing ${CAT_LABELS[missingCat]} (${examples})`
-          : `missing ${examples}`
+      const examples   = hardMissing.slice(0, 3).join(', ');
+      parts.push(missingCat
+        ? `missing ${CAT_LABELS[missingCat]} (${examples})`
+        : `missing ${examples}`
       );
-    } else if (missingRequired.length > 0 && missingRequired.every(m => m.partial)) {
-      parts.push('all skill gaps have related experience');
-    } else if (missingRequired.length === 0) {
+    } else if (missingRequired.length === 0 && conceptMatched.length === 0 && skillScore !== null) {
       parts.push('all required skills covered');
     }
 
-    const text = parts.join(', ');
-    return text.charAt(0).toUpperCase() + text.slice(1) + '.';
+    let sentence1 = parts.join(', ');
+    sentence1 = sentence1.charAt(0).toUpperCase() + sentence1.slice(1) + '.';
+
+    // --- Sentence 2: Inference details ---
+    // Concept matches: "API design inferred via rest"
+    // Partial matches: "typescript covered via javascript"
+    // These replace the old generic "all skill gaps have related experience".
+    const inferences = [
+      ...conceptMatched.filter(c => c.inReq).slice(0, 2)
+        .map(c => `${c.concept} inferred via ${c.via}`),
+      ...partialGaps.slice(0, 2)
+        .map(m => `${m.skill} covered via ${m.partial.via}`),
+    ];
+
+    let sentence2 = '';
+    if (inferences.length > 0) {
+      const raw = inferences.join('; ');
+      sentence2 = raw.charAt(0).toUpperCase() + raw.slice(1) + '.';
+    }
+
+    // --- Confidence prefix (low confidence only) ---
+    let result = sentence2 ? `${sentence1} ${sentence2}` : sentence1;
+    if (confidence === 'low') {
+      result = 'Full-page scan — ' + result.charAt(0).toLowerCase() + result.slice(1);
+    }
+
+    return result;
   }
 
   // ---------------------------------------------------------------------------
@@ -414,9 +761,17 @@
   // ---------------------------------------------------------------------------
   function detectOrGroups(text) {
     const OR_TRIGGERS = [
+      // Explicit "pick one" phrasing
       /\bone\s+or\s+(?:several|more)\s+of\b/i,
       /\bone\s+of\s+(?:the\s+following|these)\b/i,
       /\bany\s+(?:one\s+)?of\s+(?:the\s+following)?\b/i,
+      // Illustrative list markers — the list is an example, not a checklist
+      /\bsuch\s+as\b/i,
+      /\bincluding\s+but\s+not\s+limited\s+to\b/i,
+      /\be\.g\b/i,
+      /\bfor\s+example\b/i,
+      /\b(?:technologies?|tools?|languages?|frameworks?|platforms?)\s+(?:like|such\s+as|including)\b/i,
+      /\bor\s+(?:similar|equivalent|comparable)\b/i,
     ];
 
     const groups = [];
@@ -452,6 +807,45 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Concept-level matching pass.
+  //
+  // After the main skill loop has run, scan the job text for abstract phrases
+  // from CONCEPT_MAP. Only processes a concept when none of its specific skills
+  // already appeared in the job text (to avoid double-counting "API design" when
+  // "REST API" was also listed and already handled by the main loop).
+  //
+  // Returns:
+  //   conceptMatched — concept found in job, resume covers ≥1 related skill
+  //   conceptGaps    — concept found in job, resume has no related skill
+  //
+  // Each item: { concept: string, via: string|null, inReq: boolean }
+  // ---------------------------------------------------------------------------
+  function matchConcepts(requiredText, preferredText, resumeSkills, jobDetectedCanonicals) {
+    const conceptMatched = [];
+    const conceptGaps    = [];
+
+    for (const [phrase, relatedCanonicals] of Object.entries(CONCEPT_MAP)) {
+      const inReq  = textHasTerm(requiredText, phrase);
+      const inPref = !inReq && textHasTerm(preferredText, phrase);
+      if (!inReq && !inPref) continue;
+
+      // If any of this concept's specific skills were already detected in the job
+      // text by the main skill loop, the concept is already covered — skip it.
+      if (relatedCanonicals.some(c => jobDetectedCanonicals.has(c))) continue;
+
+      // None of the specific skills appeared explicitly — check resume.
+      const via = relatedCanonicals.find(c => resumeSkills.has(c));
+      if (via) {
+        conceptMatched.push({ concept: phrase, via, inReq });
+      } else {
+        conceptGaps.push({ concept: phrase, inReq });
+      }
+    }
+
+    return { conceptMatched, conceptGaps };
+  }
+
+  // ---------------------------------------------------------------------------
   // Extract job description text with tiered confidence.
   // Returns { text, confidence: 'high' | 'medium' | 'low' }
   //
@@ -461,10 +855,14 @@
   // ---------------------------------------------------------------------------
   function getJobText() {
     const HIGH = [
-      '.jobs-description__content',          // LinkedIn (common)
-      '.jobs-box__html-content',             // LinkedIn (alternate)
+      '.jobs-description__content',          // LinkedIn job page (common)
+      '.jobs-box__html-content',             // LinkedIn job page (alternate)
       '[data-test="job-description"]',       // LinkedIn (data attr)
       '.description__text',                  // LinkedIn (older layout)
+      // LinkedIn search results panel — job description rendered in right pane
+      '#job-details',                        // LinkedIn search panel (most reliable)
+      '.jobs-description-content__text--large', // LinkedIn search panel text block
+      '.jobs-description-content',          // LinkedIn search panel container
       '#jobDescriptionText',                 // Indeed
       '.jobsearch-jobDescriptionText',       // Indeed (alternate)
     ];
@@ -472,6 +870,7 @@
       '.jobs-description',
       '.jobs-details',
       '.job-details-jobs-unified-top-card__container--two-pane',
+      '.scaffold-layout__detail',            // LinkedIn search right-column wrapper
     ];
     const LOW = ['article', 'main'];
 
@@ -535,7 +934,16 @@
         }
       }
 
-      if (state === 'include') kept.push(line);
+      if (state === 'include') {
+        // Even in include mode, drop individual lines that are EEO/legal boilerplate.
+        // These appear as long paragraphs (no section header to trigger exclude state)
+        // but contain technology words (e.g. "AI used in screening") that pollute
+        // skill matching and domain detection.
+        const EEO_INLINE = /\b(equal opportunity employer|affirmative action|regardless of race|regardless of sex|regardless of gender|applicable law prohibits|protected veteran|disability status|applicant.*\bai\b|\bai\b.*(?:screening|recruitment|hiring)|recruitment process.*automat)\b/i;
+        if (EEO_INLINE.test(trimmed)) continue;
+
+        kept.push(line);
+      }
     }
 
     return kept.join('\n');
@@ -640,33 +1048,63 @@
           }
         }
 
-        // 6. Skill score — required skills only; partials count 0.5
-        const reqTotal   = matched.filter(s => SYNONYMS[s]?.some(t => textHasTerm(requiredText, t))).length
-                         + missingRequired.length;
+        // 6. Skill score — required skills only; partials count 0.5.
+        //    Returns null (not 0) when no required skills were detected at all —
+        //    that means the extraction didn't find structure, not that the candidate
+        //    has zero overlap.
         const reqMatched = matched.filter(s => SYNONYMS[s]?.some(t => textHasTerm(requiredText, t))).length;
         const reqPartial = missingRequired.filter(m => m.partial).length;
+        const reqTotal   = reqMatched + missingRequired.length;
         const skillScore = reqTotal > 0
           ? Math.round(((reqMatched + reqPartial * 0.5) / reqTotal) * 100)
-          : 0;
+          : null; // null = "couldn't assess" — not the same as 0%
 
-        // 7. Overall score — weighted average when exp data exists
-        const hasExpData  = expScore !== null;
-        const overallScore = hasExpData
-          ? Math.round(skillScore * 0.6 + expScore * 0.4)
+        // 7. Career stage classification (independent of year-based expScore)
+        const careerStage = detectCareerStage(requiredText + '\n' + preferredText, resumeText);
+
+        // Domain mismatch check — uses cleanJob (pre-split) so responsibility
+        // sections like "you'll work on embedded systems" are also scanned.
+        const domainFit = detectDomainFit(cleanJob, resumeText);
+        if (domainFit.mismatch) console.log(`🚫 Domain mismatch: ${domainFit.jobDomain}`);
+
+        // 8. Concept-level matching — catches abstract phrases like "API design"
+        //    that the keyword loop misses when no specific skill was also named.
+        const jobDetectedCanonicals = new Set([
+          ...matched,
+          ...missingRequired.map(m => m.skill),
+          ...missingPreferred.map(m => m.skill),
+        ]);
+        // Concept matching is only reliable when the main skill loop found at
+        // least some required skills — meaning the posting had enough structure
+        // for `requiredText` to be meaningful. When skillScore is null, the entire
+        // job text bled into requiredText (narrative or low-confidence extraction),
+        // and concept phrases will fire on responsibilities/context prose rather
+        // than actual requirements. Suppress concept output in that case.
+        const { conceptMatched, conceptGaps } = skillScore !== null
+          ? matchConcepts(requiredText, preferredText, resumeSkills, jobDetectedCanonicals)
+          : { conceptMatched: [], conceptGaps: [] };
+
+        // 9. Overall score — weighted average when all data exists.
+        //    Propagates null if either component is null.
+        const hasExpData   = expScore !== null;
+        const overallScore = skillScore === null ? null
+          : hasExpData ? Math.round(skillScore * 0.6 + expScore * 0.4)
           : skillScore;
 
-        // 8. Fit label and explanation
-        const { label: fitLabel, qualifier: fitQualifier } = getFitLabel(skillScore, expScore);
+        // 10. Fit label and explanation
+        const { label: fitLabel, qualifier: fitQualifier } = getFitLabel(skillScore, expScore, domainFit);
         const explanation = generateExplanation({
-          matched, missingRequired, skillScore, expScore, jobYears, resumeYears,
+          matched, missingRequired, conceptMatched, skillScore, expScore, jobYears, resumeYears, confidence, domainFit,
         });
 
-        console.log(`📊 Skill: ${skillScore}% | Exp: ${expScore ?? 'N/A'}% | Overall: ${overallScore}% | ${fitLabel}`);
+        console.log(`📊 Skill: ${skillScore ?? 'N/A'}% | Exp: ${expScore ?? 'N/A'}% | Overall: ${overallScore ?? 'N/A'}% | ${fitLabel}`);
+        if (conceptMatched.length) console.log('🔍 Concept matches:', conceptMatched.map(c => `${c.concept} → ${c.via}`).join(', '));
 
         sendResponse({
           skillScore, expScore, overallScore,
           fitLabel, fitQualifier, explanation,
           jobYears, resumeYears, confidence,
+          careerStage, domainFit, conceptMatched, conceptGaps,
           matched, missingRequired, missingPreferred, hasPreferred,
         });
       } catch (err) {

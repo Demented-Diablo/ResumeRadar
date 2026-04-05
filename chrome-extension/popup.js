@@ -63,38 +63,85 @@ document.addEventListener('DOMContentLoaded', () => {
     confidenceEl.className   = 'confidence ' + cfg.cls;
 
     // --- Three scores ---
-    setScore(skillScoreEl,   r.skillScore);
-    setScore(expScoreEl,     r.expScore);     // null → N/A
-    setScore(overallScoreEl, r.overallScore);
+    setScore(skillScoreEl,   r.skillScore);   // null → N/A (extraction too noisy)
+    setScore(overallScoreEl, r.overallScore); // null → N/A
+
+    // Exp score display.
+    // Two cases where "100%" would be technically correct but misleading:
+    //   (a) jobYears === 0: any candidate satisfies a zero-year bar, so showing
+    //       "100%" implies a scored match rather than "no bar set".
+    //   (b) Entry/intern stage + expScore null: no year data at all.
+    // In both cases, show "✓" (entry level, no experience gate) instead.
+    const jobStage = r.careerStage?.jobStage;
+    const isEntryLevelBar = r.jobYears === 0 || (jobStage === 'intern' || jobStage === 'entry');
+    if (isEntryLevelBar && (r.expScore === null || r.expScore === 100)) {
+      expScoreEl.textContent   = '✓';
+      expScoreEl.className     = 'score-num color-high';
+      expScoreEl.dataset.noPct = 'true';
+    } else {
+      setScore(expScoreEl, r.expScore);
+    }
 
     // --- Fit label ---
     const fitColors = {
-      'Strong Fit':   'fit-green',
-      'Good Fit':     'fit-green',
-      'Moderate Fit': 'fit-blue',
-      'Stretch Fit':  'fit-amber',
-      'Low Fit':      'fit-red',
+      'Strong Fit':      'fit-green',
+      'Good Fit':        'fit-green',
+      'Moderate Fit':    'fit-blue',
+      'Stretch Fit':     'fit-amber',
+      'Low Fit':         'fit-red',
+      'Domain Mismatch': 'fit-red',
+      'Low Confidence':  'fit-amber',
     };
     fitPillEl.textContent  = r.fitLabel;
     fitPillEl.className    = 'fit-pill ' + (fitColors[r.fitLabel] || 'fit-blue');
-    fitQualifierEl.textContent = r.fitQualifier ? `— ${r.fitQualifier}` : '';
+
+    // Confidence-aware qualifier: low confidence gets a soft note when no other
+    // qualifier is already present (e.g. "strong technical overlap, below experience")
+    const baseQualifier = r.fitQualifier ? `— ${r.fitQualifier}` : '';
+    const confidenceNote = r.confidence === 'low' && !r.fitQualifier
+      ? '— scores based on full-page scan'
+      : r.confidence === 'medium' && !r.fitQualifier
+      ? '— some page noise possible'
+      : '';
+    fitQualifierEl.textContent = baseQualifier || confidenceNote;
 
     // --- Explanation ---
     explanationEl.textContent = r.explanation || '';
 
-    // --- Matched skills ---
-    matchedEl.innerHTML = r.matched.length
-      ? r.matched.map(s => `<span class="badge badge-matched">${s}</span>`).join('')
+    // --- Matched skills (exact + concept inferences) ---
+    const conceptMatchedBadges = (r.conceptMatched || [])
+      .map(({ concept, via }) =>
+        `<span class="badge badge-concept" title="No exact keyword found — inferred from your ${via} experience">${concept} <span class="badge-via">≈ ${via}</span></span>`
+      ).join('');
+
+    const hasAnyMatched = r.matched.length > 0 || conceptMatchedBadges.length > 0;
+    matchedEl.innerHTML = hasAnyMatched
+      ? r.matched.map(s => `<span class="badge badge-matched">${s}</span>`).join('') + conceptMatchedBadges
       : '<span class="no-skills">None detected</span>';
 
-    // --- Missing required ---
-    missingReqEl.innerHTML = r.missingRequired.length
+    // --- Missing required (exact gaps + concept gaps) ---
+    const conceptGapBadges = (r.conceptGaps || [])
+      .filter(c => c.inReq)
+      .map(({ concept }) =>
+        `<span class="badge badge-concept-gap" title="No related skills found in your resume for this requirement">${concept}</span>`
+      ).join('');
+
+    const hasAnyMissing = r.missingRequired.length > 0 || conceptGapBadges.length > 0;
+
+    // "All required skills covered!" is only meaningful when we actually found
+    // and assessed required skills. When skillScore is null (no required skills
+    // detected), show a neutral message so we don't imply a successful match.
+    const noMissingMessage = r.skillScore === null
+      ? '<span class="no-skills">No required skills detected in this posting</span>'
+      : '<span class="no-skills">All required skills covered!</span>';
+
+    missingReqEl.innerHTML = hasAnyMissing
       ? r.missingRequired.map(({ skill, partial }) =>
           partial
             ? `<span class="badge badge-partial" title="You have ${partial.via} (${partial.family})">${skill} <span class="badge-via">≈ ${partial.via}</span></span>`
             : `<span class="badge badge-missing">${skill}</span>`
-        ).join('')
-      : '<span class="no-skills">All required skills covered!</span>';
+        ).join('') + conceptGapBadges
+      : noMissingMessage;
 
     // --- Missing preferred ---
     if (r.hasPreferred && r.missingPreferred.length > 0) {
